@@ -1,0 +1,31 @@
+# Compiled source #
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.out
+
+# Packages #
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Temporary files #
+*.tmp
+*.swp
+
+# Log and databases #
+*.log
+*.sql
+*.sqllite
+
+# OSX generated file #
+.DS_Store
+.DS_Store?

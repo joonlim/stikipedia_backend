@@ -1,25 +1,5 @@
 <?php
 	include ("connection.php");
-
-	/**
-	 * Function called when message is received from producer.
-	 */
-	function receive_search_msg($search_term) {
-		
-		$db_manager = DataManager::get_instance();
-		$result = $db_manager->mongo_search($search_term);
-
-		$str = "<br/>";
-		if (sizeof($result) > 0) {
-			$str = implode("\n", $result);
-			echo "Search results are being returned:\n $str\n";
-		}
-		else {
-			echo "No results found.\n";
-		}
-
-		return $str;
-	}
 	
 	/**
 	 * Function called when message is received from producer.
@@ -40,6 +20,26 @@
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Function called when message is received from producer.
+	 */
+	function receive_search_msg($search_term) {
+		
+		$db_manager = DataManager::get_instance();
+		$result = $db_manager->mongo_search($search_term);
+
+		$str = "<br/>";
+		if (sizeof($result) > 0) {
+			$str = implode("\n", $result);
+			echo "Search results are being returned:\n $str\n";
+		}
+		else {
+			echo "No results found.\n";
+		}
+
+		return $str;
 	}
 
 	/**
