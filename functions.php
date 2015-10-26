@@ -6,7 +6,7 @@
 	 */
 	function receive_get_msg($title) {
 		
-		$title = ucwords($title);
+		$title = ucwords(strtolower($title));
 
 		$db_manager = DataManager::get_instance();
 		$result = $db_manager->get_body($title);
