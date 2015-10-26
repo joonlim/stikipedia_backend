@@ -46,14 +46,21 @@
 	 * Function called when message is received from producer.
 	 */
 	function receive_modify_msg($arr) {
-		
-		$title = $arr['title'];
-		$body = $arr['body'];
+
+		$data = json_decode($arr, true);
+
+		$title = $data['title'];
+		$body = $data['body'];
 
 		$db_manager = DataManager::get_instance();
+		// temp
 		$status = $db_manager->set_content($title, $body);
-		
-		return $status;
+
+		$data = array(
+			"status" => $status
+			);
+
+		return json_encode($data);
 	}
 
 	function receive_rename_msg($arr) {
