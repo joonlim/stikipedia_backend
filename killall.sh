@@ -13,9 +13,4 @@ killprocess() {
     return;
 }
 
-
-if [ $# -eq 0 ]; then
-    killprocess /usr/bin/php
-else
-    killprocess /usr/bin/php $1
-fi
+killprocess /usr/bin/php
