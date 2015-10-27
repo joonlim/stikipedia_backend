@@ -15,7 +15,7 @@
 
 #define BROKERTXT 	"broker.txt"
 #define BROKER2TXT 	"broker2.txt"
-#define MAX 		16
+#define MAX 		500
 
 /**
  * Print out the program usage string
@@ -29,7 +29,7 @@
         "SCRIPT.php                     Path to php script to run.\n"													\
         "\n"																											\
         "N                              Number of processes to run the script\n"										\
-        "                               on. Max = 16 processes.\n"														\
+        "                               on. Max = 500 processes.\n"														\
         "\n"																											\
         "Option arguments:\n\n"                                                                                         \
         "[IP]                           IP address of a broker to connect to\n"											\
