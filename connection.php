@@ -47,8 +47,8 @@
 		// private constructor
 		final private function __construct() {
 
-		    $mongo = new MongoClient("130.245.168.182:27020/admin");
-			#$mongo = new MongoClient(); // local
+		    #$mongo = new MongoClient("130.245.168.182:27020/admin");
+			$mongo = new MongoClient(); // local
 
 			$db = $mongo->stiki_db;
 			
@@ -143,13 +143,15 @@
 		*/
 		private function check_title($title) {
 
-			$document = array( 
-				"title" => $title
-			);
+            $record = $this->get_article_record($title);
 
-			$result = $this->db->find($document);
+            if (!$record)
+                return false;
 
-			return $result->count();
+            if (!$record['body'])
+                return false;
+
+            return true;
 		}
 		
 		/**
@@ -171,9 +173,6 @@
 					$title = $doc['title'];
 					$body = $doc['body'];
 					array_push($article_array, $title);
-					//print_r("<br>");
-					//print_r($article_array);
-					//print_r("<br>");
 				}
 				$results = $this->make_list($article_array);
 				return $results;
@@ -392,6 +391,9 @@
 			// fail if new title exists
 			if ($this->exists($new_title))
 				return '{"status" : FAILED", "reason" : "New title already exists."}';
+
+            // Now we can rename.
+            // First, get the record of
 
 			/*
 			 *	receive from 'back_rename_queue' : {$old_title, $new_title}
