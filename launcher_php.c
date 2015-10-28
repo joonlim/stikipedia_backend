@@ -13,6 +13,10 @@
 
 #include "utils.h"
 
+#define RECEIVER_GET "receiver_get.php"
+#define RECEIVER_MODIFY "receiver_modify.php"
+#define RECEIVER_RENAME  "receiver_rename.php"
+#define RECEIVER_SEARCH  "receiver_search.php"
 #define BROKERTXT 	"broker.txt"
 #define BROKER2TXT 	"broker2.txt"
 #define MAX 		500
@@ -84,28 +88,31 @@ void executeScripts(char *phpScript, int numProcesses)
 
 int main(int argc, char **argv)
 {
-	if (argc < 3)
-    {
-		USAGE(argv[0]);
-        return EXIT_FAILURE;
-    }
+	// if (argc < 3)
+ //    {
+	// 	USAGE(argv[0]);
+ //        return EXIT_FAILURE;
+ //    }
 
-	// check if we should set broker ip file(s)
-	if (argc > 3)
-		setFile(BROKERTXT, argv[3]);
-	if (argc > 4)
-		setFile(BROKER2TXT, argv[4]);
+	// // check if we should set broker ip file(s)
+	// if (argc > 3)
+	// 	setFile(BROKERTXT, argv[3]);
+	// if (argc > 4)
+	// 	setFile(BROKER2TXT, argv[4]);
 
-    char *phpScript = argv[1];
+    // char *phpScript = argv[1];
 
-    int numProcesses = atoi(argv[2]);
+    int numProcesses = atoi(argv[1]);
     if (numProcesses > MAX || numProcesses <= 0)
     {
         USAGE(argv[0]);
         return EXIT_FAILURE;
     }
 
-    executeScripts(phpScript, numProcesses);
+    executeScripts(RECEIVER_GET, numProcesses);
+    executeScripts(RECEIVER_MODIFY, numProcesses);
+    executeScripts(RECEIVER_RENAME, numProcesses);
+    executeScripts(RECEIVER_SEARCH, numProcesses);
 
     return EXIT_SUCCESS;
 }
