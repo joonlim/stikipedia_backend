@@ -53,8 +53,8 @@
 		$body = $data['body'];
 
 		$db_manager = DataManager::get_instance();
-		// temp
-		$status = $db_manager->set_content($title, $body);
+
+		$status = $db_manager->set_body($title, $body);
 
 		$data = array(
 			"status" => $status
@@ -63,8 +63,26 @@
 		return json_encode($data);
 	}
 
+	/**
+	 * Function called when message is received from producer.
+	 */
 	function receive_rename_msg($arr) {
 
+        $data = json_decode($arr, true);
+
+        // assume titles are different.
+        $old_title = $data['old_title'];
+        $new_title = $data['new_title'];
+
+        $db_manager = DataManager::get_instance();
+
+        $status = $db_manager->rename_article($old_title, $new_title);
+
+        $data = array(
+            "status" => $status
+        );
+
+        return json_encode($data);
 
 	}
 ?>

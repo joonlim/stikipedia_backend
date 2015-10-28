@@ -47,7 +47,7 @@
 		// private constructor
 		final private function __construct() {
 
-			$mongo = new MongoClient("130.245.168.182:27020/admin");
+		    $mongo = new MongoClient("130.245.168.182:27020/admin");
 			#$mongo = new MongoClient(); // local
 
 			$db = $mongo->stiki_db;
@@ -226,17 +226,58 @@
 		*/
 		private function get_raw_content($title) {
 
-			$document = array( 
+			$record = $this->get_article_record($title);
+
+			if ($record)
+				return $record['body'];
+
+			return NULL;
+		}
+
+		/**
+		 * Gets the list of articles that contain links to this one.
+		 */
+		private function get_from_links($title) {
+
+			$record = $this->get_article_record($title);
+
+			if ($record)
+				return $record['from_links'];
+
+			return NULL;
+		}
+
+		/**
+		 * Given a title, returns record of article in array form:
+		 * {
+		 * 		"title" : "Title",
+		 * 		"body" : "Body",
+		 * 		"from_links" : ["item1", "item2" ...]
+		 * }
+		 */
+		private function get_article_record($title) {
+
+			$document = array(
 				"title" => $title
 			);
 
 			$result = $this->db->find($document);
 
 			if ($result->count() > 0) {
-			    $result->next();
-			    $first = $result->current();
-			    return $first['body'];
-			} 
+				$result->next();
+				$first = $result->current();
+
+				$body = $first['body'];
+				$from_links = $first['from_links'];
+
+				$record = array(
+					"title" => $title,
+					"body" => $body,
+					"from_links" => $from_links
+				);
+
+				return $record;
+			}
 
 			return NULL;
 		}
@@ -244,14 +285,27 @@
 		/** 
 		 * Insert a new article with a title and body into the database.
 		 */
-		public function add_new_article($title, $new_body) {
+		public function add_new_article($title, $new_body, $from_links) {
 
-			$body = RegExUtilities::replace_singlequotes($new_body);
+			$new_body = RegExUtilities::replace_singlequotes($new_body);
 
-			$document = array( 
-			      "title" => $title,
-			      "body" => $body
-			   );
+			if (!$new_body) {
+				$new_body = $this->get_raw_content($title);
+				if (!$new_body)
+					$new_body = "";
+			}
+
+			if (!$from_links) {
+				$from_links = $this->get_from_links($title);
+				if (!$from_links)
+					$from_links = array();
+			}
+
+			$document = array(
+				"title" => $title,
+				"body" => $new_body,
+				"from_links" => $from_links
+			);
 
 			$result = $this->db->insert($document);
 
@@ -271,7 +325,7 @@
 		* 
 		* Returns "UPDATED", "CREATED", OR "FAILED"
 		*/
-		public function set_content($title, $new_body) {
+		public function set_body($title, $new_body) {
 
 			// Replace single quotes with back quotes for SQL server.
 			$body = RegExUtilities::replace_singlequotes($new_body);
@@ -283,10 +337,106 @@
 				return $status;
 			}
 
+			// array of links that the body contains
+			$to_links = $this->get_to_links_from_body($new_body);
+
 			if (!$this->exists($title))
-				$status = $this->add_new_article($title, $body); // creating a new article
+				$status = $this->add_new_article($title, $body, NULL); // creating a new article
 			else
-				$status = $this->update_content($title, $body);
+				$status = $this->update_content($title, $body, NULL);
+
+			// Iterate through each article in $to_links
+			foreach ($to_links as $link) {
+				// Get record of $link from db
+
+				$link = ucwords(strtolower($link));
+
+				$link_record = $this->get_article_record($link); //r
+
+				if ($link_record) {
+					// exists already
+					$from_links = $link_record['from_links'];
+                    if ((!$from_links))
+                        $from_links = array();
+
+					// Does the from_links contain the new/udated article already?
+					if (!(in_array($title, $from_links))) {
+						// nope. add it to the list and update record in db.
+						array_push($from_links, $title);
+					}
+
+					$this->update_content($link, NULL, $from_links);
+				} else {
+					// create a stub of this article with just from_links
+					$from_links = array();
+
+					array_push($from_links, $title);
+
+					$this->add_new_article($link, NULL, $from_links);
+
+				}
+			}
+
+			return $status;
+		}
+
+		public function rename_article($old_title, $new_title) {
+
+			$status = "";
+
+			// fail if old title does not exist
+			if (!($this->exists($old_title)))
+				return '{"status" : FAILED", "reason" : "Old title does not exist."}';
+
+			// old title exists.
+			// fail if new title exists
+			if ($this->exists($new_title))
+				return '{"status" : FAILED", "reason" : "New title already exists."}';
+
+			/*
+			 *	receive from 'back_rename_queue' : {$old_title, $new_title}
+
+		bool $new_title_exists
+		var $from_links
+
+		1. Check if $new_title exists in db. get record $s of $new_title from db.
+			1.1 If $s exists && $s['body'] is not empty,
+				Return "FAILED, NEW TITLE EXISTS ALREADY"
+			1.2 If $s exists && $s['body'] is empty,
+				$new_title_exists = True
+
+		2. Check if $old_title exists in db. get record $r of $old_title from db.
+			2.1 If $r does not exist
+				Return "FAILED, OLD TITLE DOES NOT EXIST";
+			2.2 $r exists
+				get record $r of $old_title from db.
+				if $r['body'] is empty
+					Return "FAILED, OLD TITLE DOES NOT EXIST" 	// bc it doesn't really exist
+				else
+					if $new_title_exists = False
+						$from_links = $r['from_links']
+						Update record using {$new_title, $r['body'], $r['from_links']}
+					else // new title has from_links
+						$from_links = $r['from_links'].merge($s['from_links'])
+						$body = $r['body']
+						Delete $old_title
+						Update $new_title with {$new_title, $body, $from_links}
+
+		3. set $to_links = get_to_links($r['body'])
+
+		4. Iterate through each article $a in $to_links
+			4.1. get record $t of $a from db.
+			4.2. if $t['from_links'] contains $old_title
+					replace $old_title with $new_title
+				 else // this shouldn't happen
+				 	append $new_title to $t['from_links']
+
+		5. Iterate through $from_links
+			5.1. get record $v of $from_links from db
+			5.2. set $updated_body = $replace_old_title($v['body'], $old_title, $new_title)
+			5.3. update $v in db to {"title: "$v", "body" : "$updated_body", "from_links" : "$v['from_links']"}
+
+			 */
 
 			return $status;
 		}
@@ -301,18 +451,43 @@
 			return preg_match($regex, $title);
 		}
 
+		# == GET EVERYTHING IN BRACKETS ==
+		private function get_to_links_from_body($string) {
+
+			// Pattern: matches all strings of the form ([[STRING]), ([[STRING|), or ([[STRING#)
+			$pattern = "(\[\[([^\]\]]*?)[\]#|])";
+
+			// Stores all strings that match the pattern in array $matches
+			preg_match_all($pattern, $string, $matches);
+
+			return $matches[1];
+		}
+
 		/**
 		 * Update an existing article and give it a new body.
 		 */
-		private function update_content($title, $new_body) {
+		private function update_content($title, $new_body, $from_links) {
 
 			$title_array = array(
 				"title" => $title
 			);
 
+			if (!($new_body)) {
+				$new_body = $this->get_raw_content($title);
+				if (!($new_body))
+					$new_body = "";
+			}
+
+			if (!($from_links)) {
+				$from_links = $this->get_from_links($title);
+				if (!($from_links))
+					$from_links = array();
+			}
+
 			$document = array( 
 				"title" => $title,
-			    "body" => $new_body
+			    "body" => $new_body,
+				"from_links" => $from_links
 			);
 
 			$result = $this->db->update($title_array, $document);
