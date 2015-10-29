@@ -142,6 +142,25 @@
 			return $exists;
 		}
 
+        /**
+         * Checks if title exists in DB
+         */
+        private function exists_and_has_body($title) {
+
+            // Make sure the title passed in has spaces instead of underscores
+            $title = RegExUtilities::replace_underscores($title);
+
+            $record = $this->get_article_record($title);
+
+            if (!$record)
+                return false;
+
+            if (!$record['body'] || trim($record['body']) == "")
+                return false;
+
+            return true;
+        }
+
 		/**
 		* Checks if title exists in DB
 		*/
@@ -150,9 +169,6 @@
             $record = $this->get_article_record($title);
 
             if (!$record)
-                return false;
-
-            if (!$record['body'])
                 return false;
 
             return true;
@@ -352,11 +368,14 @@
 
 			// array of links that the body contains
 			$to_links = $this->get_to_links_from_body($new_body);
+			if (!$this->exists($title)){
+                $status = $this->add_new_article($title, $body, NULL); // creating a new article
+            }
 
-			if (!$this->exists($title))
-				$status = $this->add_new_article($title, $body, NULL); // creating a new article
-			else
-				$status = $this->update_content($title, $body, NULL);
+			else {
+                $status = $this->update_content($title, $body, NULL);
+            }
+
 
 			// Iterate through each article in $to_links
 			foreach ($to_links as $link) {
@@ -396,12 +415,12 @@
 		public function rename_article($old_title, $new_title) {
 
 			// fail if old title does not exist
-			if (!($this->exists($old_title)))
+			if (!($this->exists_and_has_body($old_title)))
 				return '{"status" : FAILED", "reason" : "Old title does not exist."}';
 
 			// old title exists.
 			// fail if new title exists
-			if ($this->exists($new_title))
+			if ($this->exists_and_has_body($new_title))
 				return '{"status" : FAILED", "reason" : "New title already exists."}';
 
             // Now we can rename.
@@ -435,37 +454,91 @@
 
             $to_links = $this->get_to_links_from_body($body);
 
-            // Iterate through each article in $to_links and update its from_links
-//            update_from_links
-
+            // Iterate through each article in $to_links and update all its from_links
+            // by replacing $old_title with $new_title.
+            $this->update_from_links_with_new_title($to_links, $old_title, $new_title);
 
             // Iterate through every article in $from_links and update its body
-
-
-			/*
-			 *	receive from 'back_rename_queue' : {$old_title, $new_title}
-
-
-		3. set $to_links = get_to_links($r['body'])
-
-		4. Iterate through each article $a in $to_links
-			4.1. get record $t of $a from db.
-			4.2. if $t['from_links'] contains $old_title
-					replace $old_title with $new_title
-				 else // this shouldn't happen
-				 	append $new_title to $t['from_links']
-
-		5. Iterate through $from_links
-			5.1. get record $v of $from_links from db
-			5.2. set $updated_body = $replace_old_title($v['body'], $old_title, $new_title)
-			5.3. update $v in db to {"title: "$v", "body" : "$updated_body", "from_links" : "$v['from_links']"}
-
-			 */
+            // by replacing $old_title with $new_title
+            $this->update_bodies_with_new_title($from_links, $old_title, $new_title);
 
 			return "SUCCESS";
 		}
 
-		/**
+        /**
+         * Iterate through all articles in a given list and update all the from_links
+         * by replacing $old_title with $new_title.
+         */
+        private function update_from_links_with_new_title($list_of_articles, $old_title, $new_title) {
+            foreach ($list_of_articles as $article) {
+
+                // Get record from db
+                $article_name = ucwords(strtolower($article));
+
+                $article_record = $this->get_article_record($article_name); //r
+
+                // redundant checking?
+                if ($article_record) {
+                    $from_links = $article_record['from_links'];
+
+                    // more redundant checking
+                    if (($index = array_search($old_title, $from_links)) !== false) {
+                        unset($list_of_articles[$index]); // remove old title
+                    }
+                    array_push($from_links, $new_title); // add new title
+
+                    $article_body = $article_record['body'];
+
+                    $this->update_content($article_name, $article_body, $from_links);
+                }
+            }
+        }
+
+        /**
+        * Iterate through all articles in a given list and update all the bodies by
+        * replacing $old_title with $new_title.
+        */
+        private function update_bodies_with_new_title($list_of_articles, $old_title, $new_title) {
+            foreach ($list_of_articles as $article) {
+
+                // Get record from db
+                $article_name = ucwords(strtolower($article));
+
+                $article_record = $this->get_article_record($article_name); //r
+
+                $article_body = $article_record['body'];
+
+                // replace all links to $old_title with links to $new_title
+                $body = $this->replace_old_links_in_body($article_body, $old_title, $new_title);
+
+                $from_links = $article_record['from_links'];
+
+                $this->update_content($article_name, $body, $from_links);
+            }
+        }
+
+        /**
+         * Update article body by replacing all links to $old_title with $new_title and
+         * return the result.
+         */
+        private function replace_old_links_in_body($body, $old_title, $new_title) {
+
+            // Case: [[Title]]
+            $pattern = "(\[\[[ ]*($old_title)[ ]*[\]]{2})";
+            $fixed_body = preg_replace($pattern, "[[$new_title]]", $body);
+
+            // Case: [[Title#
+            $pattern = "(\[\[[ ]*($old_title)[ ]*[#])";
+            $fixed_body = preg_replace($pattern, "[[$new_title#", $fixed_body);
+
+            // Case: [[Title|
+            $pattern = "(\[\[[ ]*($old_title)[ ]*[|])";
+            $fixed_body = preg_replace($pattern, "[[$new_title|", $fixed_body);
+            return $fixed_body;
+
+        }
+
+        /**
 		 * Check if the given title only contains valid characters.
 		 */
 		private function check_valid_title($title) {
