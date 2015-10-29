@@ -34,6 +34,10 @@
 			return True;
 		}
 
+        public function remove($document) {
+            $this->collection->remove($document);
+        }
+
 		/** Get singleton */
 		public static function get_instance() {
 
@@ -318,6 +322,16 @@
 			return $status;
 		}
 
+        /**
+         * Delete a record with this title
+         */
+        private function remove_article($title) {
+
+            $document = array("title" => $title);
+
+            return $this->db->remove($document);
+        }
+
 		/**
 		* This function updates the body of the string argument passed in.
 		* This function will create a new article if it does not exist.
@@ -381,8 +395,6 @@
 
 		public function rename_article($old_title, $new_title) {
 
-			$status = "";
-
 			// fail if old title does not exist
 			if (!($this->exists($old_title)))
 				return '{"status" : FAILED", "reason" : "Old title does not exist."}';
@@ -393,36 +405,46 @@
 				return '{"status" : FAILED", "reason" : "New title already exists."}';
 
             // Now we can rename.
-            // First, get the record of
+            // First, get the record of both $old_title
+            $old_record = $this->get_article_record($old_title); // r
+            $body = $old_record['body'];
+            $from_links = $old_record['from_links'];
+
+            // And get from_links of $new_title, if they exist.
+            $new_from_links = $this->get_from_links($new_title);
+
+            if (count($new_from_links) > 0) {
+                // new title has from_links
+                // Merge $from_links and $new_from_links
+                $from_links = array_merge($from_links, $new_from_links);
+
+                // Remove duplicates
+                $from_links = array_unique($from_links);
+
+                // Update previously existing record (no body though)
+                $this->update_content($new_title, $body, $from_links);
+            }
+            else {
+                // Leave $from_links alone
+                // Create new record
+                $this->add_new_article($new_title, $body, $from_links);
+            }
+
+            // Delete old title
+            $this->remove_article($old_title);
+
+            $to_links = $this->get_to_links_from_body($body);
+
+            // Iterate through each article in $to_links and update its from_links
+//            update_from_links
+
+
+            // Iterate through every article in $from_links and update its body
+
 
 			/*
 			 *	receive from 'back_rename_queue' : {$old_title, $new_title}
 
-		bool $new_title_exists
-		var $from_links
-
-		1. Check if $new_title exists in db. get record $s of $new_title from db.
-			1.1 If $s exists && $s['body'] is not empty,
-				Return "FAILED, NEW TITLE EXISTS ALREADY"
-			1.2 If $s exists && $s['body'] is empty,
-				$new_title_exists = True
-
-		2. Check if $old_title exists in db. get record $r of $old_title from db.
-			2.1 If $r does not exist
-				Return "FAILED, OLD TITLE DOES NOT EXIST";
-			2.2 $r exists
-				get record $r of $old_title from db.
-				if $r['body'] is empty
-					Return "FAILED, OLD TITLE DOES NOT EXIST" 	// bc it doesn't really exist
-				else
-					if $new_title_exists = False
-						$from_links = $r['from_links']
-						Update record using {$new_title, $r['body'], $r['from_links']}
-					else // new title has from_links
-						$from_links = $r['from_links'].merge($s['from_links'])
-						$body = $r['body']
-						Delete $old_title
-						Update $new_title with {$new_title, $body, $from_links}
 
 		3. set $to_links = get_to_links($r['body'])
 
@@ -440,7 +462,7 @@
 
 			 */
 
-			return $status;
+			return "SUCCESS";
 		}
 
 		/**
