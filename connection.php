@@ -51,8 +51,8 @@
 		// private constructor
 		final private function __construct() {
 
-		    #$mongo = new MongoClient("130.245.168.182:27020/admin");
-			$mongo = new MongoClient(); // local
+		    $mongo = new MongoClient("130.245.168.182:27020/admin");
+			#$mongo = new MongoClient(); // local
 
 			$db = $mongo->stiki_db;
 			
