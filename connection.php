@@ -254,24 +254,10 @@
 		}
 
 		/**
-		 * Gets the list of articles that contain links to this one.
-		 */
-		private function get_from_links($title) {
-
-			$record = $this->get_article_record($title);
-
-			if ($record)
-				return $record['from_links'];
-
-			return NULL;
-		}
-
-		/**
 		 * Given a title, returns record of article in array form:
 		 * {
 		 * 		"title" : "Title",
-		 * 		"body" : "Body",
-		 * 		"from_links" : ["item1", "item2" ...]
+		 * 		"body" : "Body"
 		 * }
 		 */
 		private function get_article_record($title) {
@@ -287,12 +273,10 @@
 				$first = $result->current();
 
 				$body = $first['body'];
-				$from_links = $first['from_links'];
 
 				$record = array(
 					"title" => $title,
 					"body" => $body,
-					"from_links" => $from_links
 				);
 
 				return $record;
@@ -304,26 +288,13 @@
 		/** 
 		 * Insert a new article with a title and body into the database.
 		 */
-		public function add_new_article($title, $new_body, $from_links) {
+		public function add_new_article($title, $body) {
 
-			$new_body = RegExUtilities::replace_singlequotes($new_body);
-
-			if (!$new_body) {
-				$new_body = $this->get_raw_content($title);
-				if (!$new_body)
-					$new_body = "";
-			}
-
-			if (!$from_links) {
-				$from_links = $this->get_from_links($title);
-				if (!$from_links)
-					$from_links = array();
-			}
+			$body = RegExUtilities::replace_singlequotes($body);
 
 			$document = array(
 				"title" => $title,
-				"body" => $new_body,
-				"from_links" => $from_links
+				"body" => $body
 			);
 
 			$result = $this->db->insert($document);
@@ -366,48 +337,13 @@
 				return $status;
 			}
 
-			// array of links that the body contains
-			$to_links = $this->get_to_links_from_body($new_body);
-			if (!$this->exists($title)){
-                $status = $this->add_new_article($title, $body, NULL); // creating a new article
+			if (!$this->exists($title)) {
+                $status = $this->add_new_article($title, $body); // creating a new article
             }
 
 			else {
-                $status = $this->update_content($title, $body, NULL);
+                $status = $this->update_content($title, $body);
             }
-
-
-			// Iterate through each article in $to_links
-			foreach ($to_links as $link) {
-				// Get record of $link from db
-
-				$link = ucwords(strtolower($link));
-
-				$link_record = $this->get_article_record($link); //r
-
-				if ($link_record) {
-					// exists already
-					$from_links = $link_record['from_links'];
-                    if ((!$from_links))
-                        $from_links = array();
-
-					// Does the from_links contain the new/udated article already?
-					if (!(in_array($title, $from_links))) {
-						// nope. add it to the list and update record in db.
-						array_push($from_links, $title);
-					}
-
-					$this->update_content($link, NULL, $from_links);
-				} else {
-					// create a stub of this article with just from_links
-					$from_links = array();
-
-					array_push($from_links, $title);
-
-					$this->add_new_article($link, NULL, $from_links);
-
-				}
-			}
 
 			return $status;
 		}
@@ -424,75 +360,27 @@
 				return '{"status" : FAILED", "reason" : "New title already exists."}';
 
             // Now we can rename.
+            // Do a search using the query "[[$old_title" and get the returning list of articles
+            $list_of_articles = $this->mongo_search("[[$old_title");
+
+            if (sizeof($list_of_articles) > 0)
+            	$this->update_bodies_with_new_title($list_of_articles, $old_title, $new_title);
+
             // First, get the record of both $old_title
             $old_record = $this->get_article_record($old_title); // r
             $body = $old_record['body'];
-            $from_links = $old_record['from_links'];
-
-            // And get from_links of $new_title, if they exist.
-            $new_from_links = $this->get_from_links($new_title);
-
-            if (count($new_from_links) > 0) {
-                // new title has from_links
-                // Merge $from_links and $new_from_links
-                $from_links = array_merge($from_links, $new_from_links);
-
-                // Remove duplicates
-                $from_links = array_unique($from_links);
-
-                // Update previously existing record (no body though)
-                $this->update_content($new_title, $body, $from_links);
-            }
-            else {
-                // Leave $from_links alone
-                // Create new record
-                $this->add_new_article($new_title, $body, $from_links);
-            }
 
             // Delete old title
             $this->remove_article($old_title);
 
-            $to_links = $this->get_to_links_from_body($body);
+            // Create new record
+            $this->add_new_article($new_title, $body);
 
-            // Iterate through each article in $to_links and update all its from_links
-            // by replacing $old_title with $new_title.
-            $this->update_from_links_with_new_title($to_links, $old_title, $new_title);
-
-            // Iterate through every article in $from_links and update its body
-            // by replacing $old_title with $new_title
-            $this->update_bodies_with_new_title($from_links, $old_title, $new_title);
+            // Delete old title
+            $this->remove_article($old_title);
 
 			return "SUCCESS";
 		}
-
-        /**
-         * Iterate through all articles in a given list and update all the from_links
-         * by replacing $old_title with $new_title.
-         */
-        private function update_from_links_with_new_title($list_of_articles, $old_title, $new_title) {
-            foreach ($list_of_articles as $article) {
-
-                // Get record from db
-                $article_name = ucwords(strtolower($article));
-
-                $article_record = $this->get_article_record($article_name); //r
-
-                // redundant checking?
-                if ($article_record) {
-                    $from_links = $article_record['from_links'];
-
-                    // more redundant checking
-                    if (($index = array_search($old_title, $from_links)) !== false) {
-                        unset($list_of_articles[$index]); // remove old title
-                    }
-                    array_push($from_links, $new_title); // add new title
-
-                    $article_body = $article_record['body'];
-
-                    $this->update_content($article_name, $article_body, $from_links);
-                }
-            }
-        }
 
         /**
         * Iterate through all articles in a given list and update all the bodies by
@@ -511,9 +399,7 @@
                 // replace all links to $old_title with links to $new_title
                 $body = $this->replace_old_links_in_body($article_body, $old_title, $new_title);
 
-                $from_links = $article_record['from_links'];
-
-                $this->update_content($article_name, $body, $from_links);
+                $this->update_content($article_name, $body);
             }
         }
 
@@ -549,7 +435,7 @@
 		}
 
 		# == GET EVERYTHING IN BRACKETS ==
-		private function get_to_links_from_body($string) {
+		private function get_link_titles_from_body($string) {
 
 			// Pattern: matches all strings of the form ([[STRING]), ([[STRING|), or ([[STRING#)
 			$pattern = "(\[\[([^\]\]]*?)[\]#|])";
@@ -563,28 +449,15 @@
 		/**
 		 * Update an existing article and give it a new body.
 		 */
-		private function update_content($title, $new_body, $from_links) {
+		private function update_content($title, $new_body) {
 
 			$title_array = array(
 				"title" => $title
 			);
 
-			if (!($new_body)) {
-				$new_body = $this->get_raw_content($title);
-				if (!($new_body))
-					$new_body = "";
-			}
-
-			if (!($from_links)) {
-				$from_links = $this->get_from_links($title);
-				if (!($from_links))
-					$from_links = array();
-			}
-
 			$document = array( 
 				"title" => $title,
-			    "body" => $new_body,
-				"from_links" => $from_links
+			    "body" => $new_body
 			);
 
 			$result = $this->db->update($title_array, $document);
