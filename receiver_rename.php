@@ -6,7 +6,7 @@
 	$file = "broker.txt";
 	
 	// Get queue name
-	$queue_rename = "back_rename";
+	$queue_rename = "BACK_RENAME";
 
 	// Get RpcServer
 

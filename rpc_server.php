@@ -98,7 +98,7 @@
 
 	    	$this->channel->queue_declare($binding_key, false, false, false, false);
 
-	    	echo " [x] Awaiting RPC requests\n";
+	    	echo " [x] Awaiting RPC requests from $binding_key\n";
 
 			// don't dispatch a new message to a worker until it has processed previous one
 			$this->channel->basic_qos(null, 1, null);

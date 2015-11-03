@@ -6,7 +6,7 @@
 	$file = "broker.txt";
 	
 	// Get queue name
-	$queue_get = "back_get";
+	$queue_get = "BACK_GET";
 
 	// Get RpcServer
 
