@@ -429,7 +429,7 @@
 		 */
 		private function check_valid_title($title) {
 
-			$regex = '/^[.a-zA-Z0-9 :\-\(\)]+$/i';
+			$regex = '/^[\'.a-zA-Z0-9 :\-\(\)]+$/i';
 
 			return preg_match($regex, $title);
 		}
