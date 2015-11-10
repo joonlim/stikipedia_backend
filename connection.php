@@ -51,8 +51,8 @@
 		// private constructor
 		final private function __construct() {
 
-		    $mongo = new MongoClient("130.245.168.242:27020/admin");
-			#$mongo = new MongoClient(); // local
+		    #$mongo = new MongoClient("130.245.168.242:27020/admin");
+			$mongo = new MongoClient(); // local
 
 			$db = $mongo->stiki_db;
 			
@@ -429,7 +429,7 @@
 		 */
 		private function check_valid_title($title) {
 
-			$regex = '/^[a-zA-Z0-9 :\-\(\)]+$/i';
+			$regex = '/^[.a-zA-Z0-9 :\-\(\)]+$/i';
 
 			return preg_match($regex, $title);
 		}
