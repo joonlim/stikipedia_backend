@@ -110,7 +110,7 @@ int main(int argc, char **argv)
     }
 
     executeScripts(RECEIVER_GET, numProcesses);
-    executeScripts(RECEIVER_MODIFY, numProcesses);
+//    executeScripts(RECEIVER_MODIFY, numProcesses);
 //    executeScripts(RECEIVER_RENAME, numProcesses);
 //    executeScripts(RECEIVER_SEARCH, numProcesses);
 
